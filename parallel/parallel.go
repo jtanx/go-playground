@@ -15,7 +15,8 @@ type Settings struct {
 	StaticArgs []string
 	Inputs     []string
 
-	Verbose bool
+	Verbose   bool
+	EarlyExit bool
 }
 
 type JobState struct {
@@ -49,6 +50,7 @@ func parseCmdline(settings *Settings) error {
 	}
 	flag.IntVar(&settings.Jobs, "j", 2, "Number of parallel jobs")
 	flag.BoolVar(&settings.Verbose, "v", false, "Verbose")
+	flag.BoolVar(&settings.EarlyExit, "x", false, "Exit as soon as an error occurs")
 	flag.Parse()
 
 	args := flag.Args()
@@ -96,7 +98,12 @@ func worker(id int, state *JobState) {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			state.JobErrs <- fmt.Errorf("%s %v: %v", state.Settings.Executable, args, err)
+			if state.Settings.EarlyExit {
+				state.Log.Error("%s %v: %v", state.Settings.Executable, args, err)
+				os.Exit(1)
+			} else {
+				state.JobErrs <- fmt.Errorf("%s %v: %v", state.Settings.Executable, args, err)
+			}
 		}
 	}
 	state.Log.Debug("Worker %d done", id)
